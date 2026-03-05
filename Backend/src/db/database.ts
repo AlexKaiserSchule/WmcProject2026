@@ -69,6 +69,15 @@ export async function initDb(): Promise<Database> {
   `);
 
   db.run(`
+    CREATE TABLE IF NOT EXISTS images (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      mime_type  TEXT    NOT NULL,
+      data       BLOB    NOT NULL,
+      created_at TEXT    NOT NULL DEFAULT (datetime('now'))
+    );
+  `);
+
+  db.run(`
     CREATE TABLE IF NOT EXISTS shopping_list (
       id         INTEGER PRIMARY KEY AUTOINCREMENT,
       name       TEXT    NOT NULL,
