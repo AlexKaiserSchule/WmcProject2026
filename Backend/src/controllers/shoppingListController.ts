@@ -1,22 +1,16 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
-import { getDb } from '../db/database';
+import { getDb, persistDb } from '../db/database';
 import { Ingredient } from '../models/Recipe';
+import { ShoppingListItem, ShoppingListItemRow, ShoppingListGroup } from '../models/ShoppingList';
 
 const AggregateSchema = z.object({
   recipeIds: z.array(z.number().int().positive()).min(1),
 });
 
-export interface ShoppingListItem {
-  name: string;
-  amount: number;
-  unit: string;
-}
-
-export interface ShoppingListGroup {
-  category: string;
-  items: ShoppingListItem[];
-}
+const AmountSchema = z.object({
+  amount: z.number().positive(),
+});
 
 function queryRows<T>(sql: string, params: (string | number | null)[] = []): T[] {
   const db = getDb();
@@ -30,9 +24,38 @@ function queryRows<T>(sql: string, params: (string | number | null)[] = []): T[]
   });
 }
 
+function queryOne<T>(sql: string, params: (string | number | null)[] = []): T | undefined {
+  return queryRows<T>(sql, params)[0];
+}
+
+function rowToItem(row: ShoppingListItemRow): ShoppingListItem {
+  return { ...row, checked: row.checked === 1 };
+}
+
+function groupItems(items: ShoppingListItem[]): ShoppingListGroup[] {
+  const grouped = new Map<string, ShoppingListItem[]>();
+  for (const item of items) {
+    if (!grouped.has(item.category)) grouped.set(item.category, []);
+    grouped.get(item.category)!.push(item);
+  }
+  return Array.from(grouped.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([category, items]) => ({
+      category,
+      items: items.sort((a, b) => a.name.localeCompare(b.name)),
+    }));
+}
+
 interface IngredientWithCategory extends Ingredient {
   category: string;
 }
+
+export const getShoppingList = (_req: Request, res: Response): void => {
+  const rows = queryRows<ShoppingListItemRow>(
+    'SELECT * FROM shopping_list ORDER BY category, name'
+  );
+  res.json(groupItems(rows.map(rowToItem)));
+};
 
 export const aggregateShoppingList = (req: Request, res: Response): void => {
   const parsed = AggregateSchema.safeParse(req.body);
@@ -42,6 +65,7 @@ export const aggregateShoppingList = (req: Request, res: Response): void => {
   }
 
   const { recipeIds } = parsed.data;
+  const db = getDb();
 
   const placeholders = recipeIds.map(() => '?').join(', ');
   const rows = queryRows<IngredientWithCategory>(
@@ -52,41 +76,77 @@ export const aggregateShoppingList = (req: Request, res: Response): void => {
     recipeIds
   );
 
-  const aggregated = new Map<string, ShoppingListItem>();
-
+  const aggregated = new Map<string, IngredientWithCategory>();
   for (const row of rows) {
     const key = `${row.name.toLowerCase()}__${row.unit.toLowerCase()}`;
     const existing = aggregated.get(key);
     if (existing) {
       existing.amount = Math.round((existing.amount + row.amount) * 100) / 100;
     } else {
-      aggregated.set(key, { name: row.name, amount: row.amount, unit: row.unit });
+      aggregated.set(key, { ...row });
     }
   }
 
-  const grouped = new Map<string, ShoppingListItem[]>();
+  db.run('DELETE FROM shopping_list');
+  for (const item of aggregated.values()) {
+    db.run(
+      'INSERT INTO shopping_list (name, amount, unit, category) VALUES (?, ?, ?, ?)',
+      [item.name, item.amount, item.unit, item.category]
+    );
+  }
+  persistDb();
 
-  for (const row of rows) {
-    const key = `${row.name.toLowerCase()}__${row.unit.toLowerCase()}`;
-    const item = aggregated.get(key);
-    if (!item) continue;
+  const saved = queryRows<ShoppingListItemRow>('SELECT * FROM shopping_list ORDER BY category, name');
+  res.status(201).json(groupItems(saved.map(rowToItem)));
+};
 
-    if (!grouped.has(row.category)) {
-      grouped.set(row.category, []);
-    }
-
-    const group = grouped.get(row.category)!;
-    if (!group.find((i) => i.name === item.name && i.unit === item.unit)) {
-      group.push(item);
-    }
+export const checkItem = (req: Request, res: Response): void => {
+  const id = Number(req.params.id);
+  const row = queryOne<ShoppingListItemRow>('SELECT * FROM shopping_list WHERE id = ?', [id]);
+  if (!row) {
+    res.status(404).json({ error: 'Eintrag nicht gefunden' });
+    return;
   }
 
-  const result: ShoppingListGroup[] = Array.from(grouped.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([category, items]) => ({
-      category,
-      items: items.sort((a, b) => a.name.localeCompare(b.name)),
-    }));
+  const newChecked = row.checked === 1 ? 0 : 1;
+  getDb().run('UPDATE shopping_list SET checked = ? WHERE id = ?', [newChecked, id]);
+  persistDb();
 
-  res.json(result);
+  const updated = queryOne<ShoppingListItemRow>('SELECT * FROM shopping_list WHERE id = ?', [id])!;
+  res.json(rowToItem(updated));
+};
+
+export const updateAmount = (req: Request, res: Response): void => {
+  const id = Number(req.params.id);
+  const parsed = AmountSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const row = queryOne<ShoppingListItemRow>('SELECT * FROM shopping_list WHERE id = ?', [id]);
+  if (!row) {
+    res.status(404).json({ error: 'Eintrag nicht gefunden' });
+    return;
+  }
+
+  getDb().run('UPDATE shopping_list SET amount = ? WHERE id = ?', [parsed.data.amount, id]);
+  persistDb();
+
+  const updated = queryOne<ShoppingListItemRow>('SELECT * FROM shopping_list WHERE id = ?', [id])!;
+  res.json(rowToItem(updated));
+};
+
+export const deleteChecked = (_req: Request, res: Response): void => {
+  getDb().run('DELETE FROM shopping_list WHERE checked = 1');
+  persistDb();
+
+  const remaining = queryRows<ShoppingListItemRow>('SELECT * FROM shopping_list ORDER BY category, name');
+  res.json(groupItems(remaining.map(rowToItem)));
+};
+
+export const clearShoppingList = (_req: Request, res: Response): void => {
+  getDb().run('DELETE FROM shopping_list');
+  persistDb();
+  res.status(204).send();
 };

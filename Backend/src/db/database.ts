@@ -29,6 +29,22 @@ export async function initDb(): Promise<Database> {
   db.run('PRAGMA foreign_keys = ON;');
 
   db.run(`
+    CREATE TABLE IF NOT EXISTS categories (
+      id   INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT    NOT NULL UNIQUE
+    );
+  `);
+
+  const existingCats = db.exec('SELECT COUNT(*) as cnt FROM categories');
+  const catCount = existingCats[0]?.values[0][0] as number;
+  if (catCount === 0) {
+    const defaults = ['Vegan', 'Dessert', 'Hauptgericht', 'Snack', 'Frühstück'];
+    for (const name of defaults) {
+      db.run('INSERT OR IGNORE INTO categories (name) VALUES (?)', [name]);
+    }
+  }
+
+  db.run(`
     CREATE TABLE IF NOT EXISTS recipes (
       id          INTEGER PRIMARY KEY AUTOINCREMENT,
       name        TEXT    NOT NULL,
@@ -49,6 +65,18 @@ export async function initDb(): Promise<Database> {
       name       TEXT    NOT NULL,
       amount     REAL    NOT NULL,
       unit       TEXT    NOT NULL
+    );
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS shopping_list (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      name       TEXT    NOT NULL,
+      amount     REAL    NOT NULL,
+      unit       TEXT    NOT NULL,
+      category   TEXT    NOT NULL,
+      checked    INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT    NOT NULL DEFAULT (datetime('now'))
     );
   `);
 
