@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/recipe_provider.dart';
+import 'providers/shopping_list_provider.dart';
 import 'screens/home_screen.dart';
+import 'screens/detail_screen.dart';
+import 'screens/add_edit_screen.dart';
+import 'screens/shopping_list_screen.dart';
 
 void main() {
   runApp(
@@ -10,6 +14,7 @@ void main() {
       providers: [
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => RecipeProvider()),
+        ChangeNotifierProvider(create: (_) => ShoppingListProvider()),
       ],
       child: const RecipeVaultApp(),
     ),
@@ -30,6 +35,10 @@ class RecipeVaultApp extends StatelessWidget {
       initialRoute: '/',
       routes: {
         '/': (_) => const HomeScreen(),
+        '/recipe-detail': (_) => const DetailScreen(),
+        '/add-recipe': (_) => const AddEditScreen(),
+        '/edit-recipe': (_) => const AddEditScreen(),
+        '/shopping-list': (_) => const ShoppingListScreen(),
       },
     );
   }

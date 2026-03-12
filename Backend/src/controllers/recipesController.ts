@@ -11,7 +11,7 @@ const IngredientSchema = z.object({
 
 const RecipeSchema = z.object({
   name: z.string().min(1),
-  image_url: z.string().url().optional().nullable(),
+  image_url: z.string().optional().nullable(),
   difficulty: z.number().int().min(1).max(5),
   category: z.string().min(1),
   prep_time: z.number().int().positive(),

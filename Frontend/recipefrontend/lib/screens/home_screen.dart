@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/recipe_provider.dart';
 import '../providers/theme_provider.dart';
 import '../themes/app_themes.dart';
+import '../services/api_service.dart';
 import '../widgets/recipe_card.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -14,13 +15,22 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _searchController = TextEditingController();
+  List<String> _categories = [];
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<RecipeProvider>().loadRecipes();
+      _loadCategories();
     });
+  }
+
+  Future<void> _loadCategories() async {
+    try {
+      final cats = await ApiService().getCategories();
+      if (mounted) setState(() => _categories = cats.map((c) => c['name'] as String).toList());
+    } catch (_) {}
   }
 
   @override
@@ -41,10 +51,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: () => _showSearchBar(context),
-          ),
-          IconButton(
             icon: const Icon(Icons.palette_outlined),
             onPressed: () => _showThemePicker(context),
           ),
@@ -56,6 +62,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: Column(
         children: [
+          _buildSearchBar(context),
           _buildFilterChips(context),
           Expanded(child: _buildBody(context)),
         ],
@@ -73,7 +80,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildFilterChips(BuildContext context) {
     final provider = context.watch<RecipeProvider>();
     final theme = Theme.of(context);
-    final categories = ['Vegan', 'Dessert', 'Hauptgericht', 'Snack', 'Frühstück'];
+    final categories = _categories;
 
     return Container(
       color: theme.colorScheme.surface,
@@ -190,40 +197,35 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _showSearchBar(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Rezept suchen'),
-        content: TextField(
-          controller: _searchController,
-          autofocus: true,
-          decoration: const InputDecoration(
-            hintText: 'Name eingeben...',
-            prefixIcon: Icon(Icons.search),
+  Widget _buildSearchBar(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: TextField(
+        controller: _searchController,
+        decoration: InputDecoration(
+          hintText: 'Rezept suchen...',
+          prefixIcon: const Icon(Icons.search),
+          suffixIcon: _searchController.text.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.clear),
+                  onPressed: () {
+                    _searchController.clear();
+                    context.read<RecipeProvider>().setSearch('');
+                  },
+                )
+              : null,
+          filled: true,
+          fillColor: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.3),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
           ),
-          onSubmitted: (value) {
-            context.read<RecipeProvider>().setSearch(value);
-            Navigator.pop(ctx);
-          },
+          contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
         ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              _searchController.clear();
-              context.read<RecipeProvider>().setSearch('');
-              Navigator.pop(ctx);
-            },
-            child: const Text('Zurücksetzen'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              context.read<RecipeProvider>().setSearch(_searchController.text);
-              Navigator.pop(ctx);
-            },
-            child: const Text('Suchen'),
-          ),
-        ],
+        onChanged: (value) {
+          setState(() {});
+          context.read<RecipeProvider>().setSearch(value);
+        },
       ),
     );
   }

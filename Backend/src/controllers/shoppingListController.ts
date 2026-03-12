@@ -87,12 +87,21 @@ export const aggregateShoppingList = (req: Request, res: Response): void => {
     }
   }
 
-  db.run('DELETE FROM shopping_list');
   for (const item of aggregated.values()) {
-    db.run(
-      'INSERT INTO shopping_list (name, amount, unit, category) VALUES (?, ?, ?, ?)',
-      [item.name, item.amount, item.unit, item.category]
+    const key = `${item.name.toLowerCase()}__${item.unit.toLowerCase()}`;
+    const existingRow = queryOne<ShoppingListItemRow>(
+      'SELECT * FROM shopping_list WHERE LOWER(name) = ? AND LOWER(unit) = ?',
+      [item.name.toLowerCase(), item.unit.toLowerCase()]
     );
+    if (existingRow) {
+      const newAmount = Math.round((existingRow.amount + item.amount) * 100) / 100;
+      db.run('UPDATE shopping_list SET amount = ? WHERE id = ?', [newAmount, existingRow.id]);
+    } else {
+      db.run(
+        'INSERT INTO shopping_list (name, amount, unit, category) VALUES (?, ?, ?, ?)',
+        [item.name, item.amount, item.unit, item.category]
+      );
+    }
   }
   persistDb();
 
