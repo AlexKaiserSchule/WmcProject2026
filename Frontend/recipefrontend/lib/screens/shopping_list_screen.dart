@@ -118,26 +118,60 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
   }
 
   Widget _buildItem(BuildContext context, ShoppingListItem item, ShoppingListProvider provider, ThemeData theme) {
-    return ListTile(
-      leading: Checkbox(
-        value: item.checked,
-        onChanged: (_) => provider.toggleCheck(item.id),
-        activeColor: theme.colorScheme.primary,
-      ),
-      title: Text(
-        item.name,
-        style: TextStyle(
-          decoration: item.checked ? TextDecoration.lineThrough : null,
-          color: item.checked ? Colors.grey : null,
+    return TweenAnimationBuilder<double>(
+      duration: const Duration(milliseconds: 300),
+      tween: Tween(begin: 0.0, end: 1.0),
+      builder: (context, value, child) {
+        return Transform.translate(
+          offset: Offset(0, 20 * (1 - value)),
+          child: Opacity(
+            opacity: value,
+            child: child,
+          ),
+        );
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        decoration: BoxDecoration(
+          color: item.checked ? theme.colorScheme.surfaceContainerHighest.withOpacity(0.3) : null,
         ),
-      ),
-      subtitle: Text(
-        '${_fmtAmt(item.amount)} ${item.unit}',
-        style: TextStyle(color: item.checked ? Colors.grey : null),
-      ),
-      trailing: IconButton(
-        icon: const Icon(Icons.edit_outlined, size: 20),
-        onPressed: item.checked ? null : () => _showAmountDialog(context, item, provider),
+        child: ListTile(
+          leading: AnimatedScale(
+            scale: item.checked ? 1.2 : 1.0,
+            duration: const Duration(milliseconds: 200),
+            child: Checkbox(
+              value: item.checked,
+              onChanged: (_) => provider.toggleCheck(item.id),
+              activeColor: theme.colorScheme.primary,
+            ),
+          ),
+          title: AnimatedDefaultTextStyle(
+            duration: const Duration(milliseconds: 300),
+            style: TextStyle(
+              decoration: item.checked ? TextDecoration.lineThrough : null,
+              color: item.checked ? Colors.grey : theme.colorScheme.onSurface,
+              fontSize: 16,
+            ),
+            child: Text(item.name),
+          ),
+          subtitle: AnimatedDefaultTextStyle(
+            duration: const Duration(milliseconds: 300),
+            style: TextStyle(
+              color: item.checked ? Colors.grey : theme.colorScheme.onSurface.withOpacity(0.6),
+              fontSize: 14,
+            ),
+            child: Text('${_fmtAmt(item.amount)} ${item.unit}'),
+          ),
+          trailing: AnimatedOpacity(
+            opacity: item.checked ? 0.3 : 1.0,
+            duration: const Duration(milliseconds: 300),
+            child: IconButton(
+              icon: const Icon(Icons.edit_outlined, size: 20),
+              onPressed: item.checked ? null : () => _showAmountDialog(context, item, provider),
+            ),
+          ),
+        ),
       ),
     );
   }

@@ -7,6 +7,7 @@ import 'screens/home_screen.dart';
 import 'screens/detail_screen.dart';
 import 'screens/add_edit_screen.dart';
 import 'screens/shopping_list_screen.dart';
+import 'widgets/page_transitions.dart';
 
 void main() {
   runApp(
@@ -33,12 +34,21 @@ class RecipeVaultApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: themeProvider.themeData,
       initialRoute: '/',
-      routes: {
-        '/': (_) => const HomeScreen(),
-        '/recipe-detail': (_) => const DetailScreen(),
-        '/add-recipe': (_) => const AddEditScreen(),
-        '/edit-recipe': (_) => const AddEditScreen(),
-        '/shopping-list': (_) => const ShoppingListScreen(),
+      onGenerateRoute: (settings) {
+        switch (settings.name) {
+          case '/':
+            return MaterialPageRoute(builder: (_) => const HomeScreen());
+          case '/recipe-detail':
+            return FadePageRoute(page: const DetailScreen());
+          case '/add-recipe':
+            return SlidePageRoute(page: const AddEditScreen());
+          case '/edit-recipe':
+            return SlidePageRoute(page: const AddEditScreen());
+          case '/shopping-list':
+            return ScalePageRoute(page: const ShoppingListScreen());
+          default:
+            return MaterialPageRoute(builder: (_) => const HomeScreen());
+        }
       },
     );
   }

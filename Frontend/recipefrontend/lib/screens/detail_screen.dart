@@ -13,12 +13,31 @@ class DetailScreen extends StatefulWidget {
   State<DetailScreen> createState() => _DetailScreenState();
 }
 
-class _DetailScreenState extends State<DetailScreen> {
+class _DetailScreenState extends State<DetailScreen> with SingleTickerProviderStateMixin {
   final ApiService _api = ApiService();
   Recipe? _recipe;
   bool _loading = true;
   bool _loaded = false;
   String? _error;
+  late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
+  late Animation<Offset> _slideAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeIn),
+    );
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.1),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeOut));
+  }
 
   @override
   void didChangeDependencies() {
@@ -29,6 +48,12 @@ class _DetailScreenState extends State<DetailScreen> {
     _loadRecipe(id);
   }
 
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadRecipe(int id) async {
     try {
       final recipe = await _api.getRecipeById(id);
@@ -36,6 +61,7 @@ class _DetailScreenState extends State<DetailScreen> {
         _recipe = recipe;
         _loading = false;
       });
+      _animationController.forward();
     } catch (e) {
       setState(() {
         _error = e.toString();
@@ -94,9 +120,13 @@ class _DetailScreenState extends State<DetailScreen> {
             ],
           ),
           SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
+            child: FadeTransition(
+              opacity: _fadeAnimation,
+              child: SlideTransition(
+                position: _slideAnimation,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildInfoRow(recipe, theme),
@@ -172,6 +202,8 @@ class _DetailScreenState extends State<DetailScreen> {
                   const SizedBox(height: 32),
                 ],
               ),
+                ),
+              ),
             ),
           ),
         ],
@@ -181,10 +213,13 @@ class _DetailScreenState extends State<DetailScreen> {
 
   Widget _buildHeroImage(Recipe recipe) {
     if (recipe.imageUrl != null && recipe.imageUrl!.isNotEmpty) {
-      return Image.network(
-        _api.imageUrl(recipe.imageUrl!),
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _imagePlaceholder(),
+      return Hero(
+        tag: 'recipe-${recipe.id}',
+        child: Image.network(
+          _api.imageUrl(recipe.imageUrl!),
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _imagePlaceholder(),
+        ),
       );
     }
     return _imagePlaceholder();

@@ -12,12 +12,14 @@ class AddEditScreen extends StatefulWidget {
   State<AddEditScreen> createState() => _AddEditScreenState();
 }
 
-class _AddEditScreenState extends State<AddEditScreen> {
+class _AddEditScreenState extends State<AddEditScreen> with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _api = ApiService();
   final _picker = ImagePicker();
   final _nameCtrl = TextEditingController();
   final _prepTimeCtrl = TextEditingController();
+  late AnimationController _stepAnimationController;
+  late Animation<double> _stepFadeAnimation;
 
   String _category = 'Hauptgericht';
   int _difficulty = 3;
@@ -31,6 +33,19 @@ class _AddEditScreenState extends State<AddEditScreen> {
 
   int? _editId;
   bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _stepAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _stepFadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _stepAnimationController, curve: Curves.easeIn),
+    );
+    _stepAnimationController.forward();
+  }
 
   @override
   void didChangeDependencies() {
@@ -90,6 +105,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
   void dispose() {
     _nameCtrl.dispose();
     _prepTimeCtrl.dispose();
+    _stepAnimationController.dispose();
     for (final m in _ingredientCtrls) { m.values.forEach((c) => c.dispose()); }
     for (final c in _stepCtrls) { c.dispose(); }
     super.dispose();
@@ -165,9 +181,27 @@ class _AddEditScreenState extends State<AddEditScreen> {
               key: _formKey,
               child: Stepper(
                 currentStep: _currentStep,
-                onStepContinue: () { if (_currentStep < 3) setState(() => _currentStep++); else _save(); },
-                onStepCancel: () { if (_currentStep > 0) setState(() => _currentStep--); },
-                onStepTapped: (s) => setState(() => _currentStep = s),
+                onStepContinue: () {
+                  if (_currentStep < 3) {
+                    setState(() => _currentStep++);
+                    _stepAnimationController.reset();
+                    _stepAnimationController.forward();
+                  } else {
+                    _save();
+                  }
+                },
+                onStepCancel: () {
+                  if (_currentStep > 0) {
+                    setState(() => _currentStep--);
+                    _stepAnimationController.reset();
+                    _stepAnimationController.forward();
+                  }
+                },
+                onStepTapped: (s) {
+                  setState(() => _currentStep = s);
+                  _stepAnimationController.reset();
+                  _stepAnimationController.forward();
+                },
                 controlsBuilder: (ctx, details) => Padding(
                   padding: const EdgeInsets.only(top: 16),
                   child: Row(children: [
@@ -176,10 +210,38 @@ class _AddEditScreenState extends State<AddEditScreen> {
                   ]),
                 ),
                 steps: [
-                  Step(title: const Text('Grunddaten'), isActive: _currentStep >= 0, content: _stepBasic(theme)),
-                  Step(title: const Text('Zutaten'), isActive: _currentStep >= 1, content: _stepIngredients()),
-                  Step(title: const Text('Anleitung'), isActive: _currentStep >= 2, content: _stepSteps()),
-                  Step(title: const Text('Bild'), isActive: _currentStep >= 3, content: _stepImage(theme)),
+                  Step(
+                    title: const Text('Grunddaten'),
+                    isActive: _currentStep >= 0,
+                    content: FadeTransition(
+                      opacity: _stepFadeAnimation,
+                      child: _stepBasic(theme),
+                    ),
+                  ),
+                  Step(
+                    title: const Text('Zutaten'),
+                    isActive: _currentStep >= 1,
+                    content: FadeTransition(
+                      opacity: _stepFadeAnimation,
+                      child: _stepIngredients(),
+                    ),
+                  ),
+                  Step(
+                    title: const Text('Anleitung'),
+                    isActive: _currentStep >= 2,
+                    content: FadeTransition(
+                      opacity: _stepFadeAnimation,
+                      child: _stepSteps(),
+                    ),
+                  ),
+                  Step(
+                    title: const Text('Bild'),
+                    isActive: _currentStep >= 3,
+                    content: FadeTransition(
+                      opacity: _stepFadeAnimation,
+                      child: _stepImage(theme),
+                    ),
+                  ),
                 ],
               ),
             ),

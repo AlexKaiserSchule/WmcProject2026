@@ -3,26 +3,78 @@ import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 import '../models/recipe.dart';
 import '../services/api_service.dart';
 
-class RecipeCard extends StatelessWidget {
+class RecipeCard extends StatefulWidget {
   final Recipe recipe;
   final VoidCallback onTap;
   final VoidCallback? onDelete;
+  final int index;
 
   const RecipeCard({
     super.key,
     required this.recipe,
     required this.onTap,
     this.onDelete,
+    this.index = 0,
   });
+
+  @override
+  State<RecipeCard> createState() => _RecipeCardState();
+}
+
+class _RecipeCardState extends State<RecipeCard> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _fadeAnimation;
+  bool _isPressed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _scaleAnimation = Tween<double>(begin: 0.95, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
+    );
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeIn),
+    );
+    
+    Future.delayed(Duration(milliseconds: 50 * widget.index), () {
+      if (mounted) _controller.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Card(
-      child: InkWell(
-        onTap: onTap,
-        child: Column(
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Transform.scale(
+          scale: _isPressed ? 0.95 : _scaleAnimation.value,
+          child: Opacity(
+            opacity: _fadeAnimation.value,
+            child: child,
+          ),
+        );
+      },
+      child: Card(
+        elevation: _isPressed ? 1 : 2,
+        child: InkWell(
+          onTap: widget.onTap,
+          onTapDown: (_) => setState(() => _isPressed = true),
+          onTapUp: (_) => setState(() => _isPressed = false),
+          onTapCancel: () => setState(() => _isPressed = false),
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
@@ -31,7 +83,7 @@ class RecipeCard extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
               child: Text(
-                recipe.name,
+                widget.recipe.name,
                 style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
@@ -43,7 +95,7 @@ class RecipeCard extends StatelessWidget {
                 children: [
                   Expanded(
                     child: RatingBarIndicator(
-                      rating: recipe.difficulty.toDouble(),
+                      rating: widget.recipe.difficulty.toDouble(),
                       itemBuilder: (context, _) => Icon(
                         Icons.star,
                         color: theme.colorScheme.primary,
@@ -53,7 +105,7 @@ class RecipeCard extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    '${recipe.prepTime} Min',
+                    '${widget.recipe.prepTime} Min',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurface.withOpacity(0.6),
                     ),
@@ -70,7 +122,7 @@ class RecipeCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  recipe.category,
+                  widget.recipe.category,
                   style: theme.textTheme.labelSmall?.copyWith(
                     color: theme.colorScheme.onSecondaryContainer,
                   ),
@@ -80,16 +132,20 @@ class RecipeCard extends StatelessWidget {
           ],
         ),
       ),
+      ),
     );
   }
 
   Widget _buildImage(BuildContext context) {
-    if (recipe.imageUrl != null && recipe.imageUrl!.isNotEmpty) {
-      return Image.network(
-        ApiService().imageUrl(recipe.imageUrl!),
-        fit: BoxFit.cover,
-        width: double.infinity,
-        errorBuilder: (_, __, ___) => _placeholder(context),
+    if (widget.recipe.imageUrl != null && widget.recipe.imageUrl!.isNotEmpty) {
+      return Hero(
+        tag: 'recipe-${widget.recipe.id}',
+        child: Image.network(
+          ApiService().imageUrl(widget.recipe.imageUrl!),
+          fit: BoxFit.cover,
+          width: double.infinity,
+          errorBuilder: (_, __, ___) => _placeholder(context),
+        ),
       );
     }
     return _placeholder(context);

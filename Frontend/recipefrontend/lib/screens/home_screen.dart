@@ -13,13 +13,22 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
   final _searchController = TextEditingController();
   List<String> _categories = [];
+  late AnimationController _fabController;
+  late Animation<double> _fabRotation;
 
   @override
   void initState() {
     super.initState();
+    _fabController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _fabRotation = Tween<double>(begin: 0, end: 0.125).animate(
+      CurvedAnimation(parent: _fabController, curve: Curves.easeInOut),
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<RecipeProvider>().loadRecipes();
       _loadCategories();
@@ -36,6 +45,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _fabController.dispose();
     super.dispose();
   }
 
@@ -67,12 +77,21 @@ class _HomeScreenState extends State<HomeScreen> {
           Expanded(child: _buildBody(context)),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          await Navigator.pushNamed(context, '/add-recipe');
-          if (mounted) context.read<RecipeProvider>().loadRecipes();
-        },
-        child: const Icon(Icons.add),
+      floatingActionButton: RotationTransition(
+        turns: _fabRotation,
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.9, end: 1.0).animate(
+            CurvedAnimation(parent: _fabController, curve: Curves.easeOut),
+          ),
+          child: FloatingActionButton(
+            onPressed: () async {
+              _fabController.forward().then((_) => _fabController.reverse());
+              await Navigator.pushNamed(context, '/add-recipe');
+              if (mounted) context.read<RecipeProvider>().loadRecipes();
+            },
+            child: const Icon(Icons.add),
+          ),
+        ),
       ),
     );
   }
@@ -182,6 +201,7 @@ class _HomeScreenState extends State<HomeScreen> {
           final recipe = provider.recipes[index];
           return RecipeCard(
             recipe: recipe,
+            index: index,
             onTap: () async {
               await Navigator.pushNamed(
                 context,
